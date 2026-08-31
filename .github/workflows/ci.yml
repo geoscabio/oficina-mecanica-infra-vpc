@@ -17,6 +17,7 @@ concurrency:
 
 env:
   TF_WORKING_DIRECTORY: infra/terraform/environments/dev
+  TERRAFORM_VERSION: "1.15.8"
 
 jobs:
   validate_terraform:
@@ -30,6 +31,7 @@ jobs:
       - name: "🛠️ 02 · Instalar Terraform"
         uses: hashicorp/setup-terraform@v4
         with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
           terraform_wrapper: false
 
       - name: "🎨 03 · Verificar formatação Terraform"
