@@ -14,6 +14,7 @@ on:
 
 env:
   TF_WORKING_DIRECTORY: infra/terraform/environments/dev
+  TERRAFORM_VERSION: "1.15.8"
   SSM_VPC_PREFIX: /oficina-mecanica/dev/vpc
 
 jobs:
@@ -109,6 +110,7 @@ jobs:
       - name: "🛠️ 03 · Instalar Terraform"
         uses: hashicorp/setup-terraform@v4
         with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
           terraform_wrapper: false
 
       - name: "📦 04 · Restaurar cache do state Terraform"
@@ -201,6 +203,7 @@ jobs:
       - name: "🛠️ 03 · Instalar Terraform"
         uses: hashicorp/setup-terraform@v4
         with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
           terraform_wrapper: false
 
       - name: "🚀 04 · Inicializar Terraform"
