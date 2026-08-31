@@ -1,0 +1,64 @@
+name: "📦 CD Release"
+
+on:
+  push:
+    branches:
+      - release
+      - "release/**"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  register-homologation:
+    name: "📦 01 · Registrar homologação lógica"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: "📌 01 · Registrar promoção da VPC"
+        run: |
+          echo "A VPC real é provisionada somente em development no AWS Academy."
+          echo "Este estágio registra a promoção lógica para homologação."
+
+  open-pr-to-main:
+    name: "🔀 02 · Abrir PR para main"
+    runs-on: ubuntu-latest
+    needs: register-homologation
+    if: vars.AUTO_PR_ENABLED == 'true'
+
+    steps:
+      - name: "📥 01 · Baixar código do repositório"
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: "🔀 02 · Criar ou manter PR para main"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          source_branch="${GITHUB_REF_NAME}"
+          git fetch origin main "$source_branch"
+
+          pending_commits="$(git rev-list --count "origin/main..origin/$source_branch")"
+          if [ "$pending_commits" -eq 0 ]; then
+            echo "Sem commits pendentes de $source_branch para main."
+            exit 0
+          fi
+
+          existing_pr="$(gh pr list --base main --head "$source_branch" --state open --json number --jq '.[0].number // empty')"
+
+          if [ -n "$existing_pr" ]; then
+            echo "PR #$existing_pr já existe para $source_branch -> main."
+            exit 0
+          fi
+
+          gh pr create \
+            --base main \
+            --head "$source_branch" \
+            --title "ci(vpc): promover rede para main" \
+            --body "PR automático aberto após promoção lógica da VPC em homologação. O merge para \`main\` continua manual para manter revisão e rastreabilidade."

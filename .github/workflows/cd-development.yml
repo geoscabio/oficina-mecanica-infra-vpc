@@ -1,0 +1,118 @@
+name: "🚀 CD Development"
+
+on:
+  push:
+    branches:
+      - develop
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  RELEASE_BRANCH: ${{ vars.RELEASE_BRANCH || 'release' }}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  detect-deploy-scope:
+    name: "🔎 01 · Detectar se há mudança que exige deploy"
+    runs-on: ubuntu-latest
+    outputs:
+      deploy_required: ${{ steps.detect.outputs.deploy_required }}
+
+    steps:
+      - name: "📥 01 · Baixar código do repositório"
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: "🔍 02 · Analisar arquivos alterados"
+        id: detect
+        env:
+          GITHUB_BEFORE: ${{ github.event.before }}
+          GITHUB_AFTER: ${{ github.sha }}
+        run: |
+          deploy_required=false
+
+          if [ -z "$GITHUB_BEFORE" ] || [ "$GITHUB_BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            deploy_required=true
+          else
+            changed_files="$(mktemp)"
+            git diff --name-only "$GITHUB_BEFORE" "$GITHUB_AFTER" > "$changed_files"
+
+            if [ ! -s "$changed_files" ]; then
+              deploy_required=false
+            else
+              while IFS= read -r file; do
+                case "$file" in
+                  README.md|docs/*|*.md)
+                    ;;
+                  *)
+                    deploy_required=true
+                    break
+                    ;;
+                esac
+              done < "$changed_files"
+            fi
+          fi
+
+          echo "deploy_required=$deploy_required" >> "$GITHUB_OUTPUT"
+          echo "Deploy required: $deploy_required"
+
+  deploy-development:
+    name: "☁️ 02 · Deploy da VPC em development"
+    needs: detect-deploy-scope
+    if: needs.detect-deploy-scope.outputs.deploy_required == 'true'
+    uses: ./.github/workflows/aws-deploy.yml
+    with:
+      environment_name: development
+    secrets: inherit
+
+  open-pr-to-release:
+    name: "🔀 03 · Abrir PR para release"
+    runs-on: ubuntu-latest
+    needs:
+      - detect-deploy-scope
+      - deploy-development
+    if: always() && vars.AUTO_PR_ENABLED == 'true' && (needs.detect-deploy-scope.outputs.deploy_required == 'false' || (needs.deploy-development.result == 'success' && needs.deploy-development.outputs.terraform_action == 'apply'))
+
+    steps:
+      - name: "📥 01 · Baixar código do repositório"
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: "🔀 02 · Criar ou manter PR para release"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if ! git ls-remote --exit-code --heads origin "$RELEASE_BRANCH"; then
+            echo "Release branch '$RELEASE_BRANCH' não existe. Criando a partir de main."
+            git fetch origin main
+            git switch --create "$RELEASE_BRANCH" origin/main
+            git push origin "$RELEASE_BRANCH"
+          fi
+
+          git fetch origin develop "$RELEASE_BRANCH"
+
+          pending_commits="$(git rev-list --count "origin/$RELEASE_BRANCH..origin/develop")"
+          if [ "$pending_commits" -eq 0 ]; then
+            echo "Sem commits pendentes de develop para $RELEASE_BRANCH."
+            exit 0
+          fi
+
+          existing_pr="$(gh pr list --base "$RELEASE_BRANCH" --head develop --state open --json number --jq '.[0].number // empty')"
+
+          if [ -n "$existing_pr" ]; then
+            echo "PR #$existing_pr já existe para develop -> $RELEASE_BRANCH."
+            exit 0
+          fi
+
+          gh pr create \
+            --base "$RELEASE_BRANCH" \
+            --head develop \
+            --title "ci(vpc): promover rede para $RELEASE_BRANCH" \
+            --body "PR automático aberto após validação da VPC em development. O merge para \`$RELEASE_BRANCH\` continua manual para manter revisão e rastreabilidade."

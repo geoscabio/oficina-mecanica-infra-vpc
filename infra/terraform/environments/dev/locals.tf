@@ -1,0 +1,12 @@
+locals {
+  project_name = "OficinaMecanica"
+
+  common_tags = {
+    Project     = local.project_name
+    Environment = var.environment
+    ManagedBy   = "Terraform"
+    Repository  = "oficina-mecanica-infra-vpc"
+  }
+
+  ssm_prefix = "/oficina-mecanica/dev/vpc"
+}

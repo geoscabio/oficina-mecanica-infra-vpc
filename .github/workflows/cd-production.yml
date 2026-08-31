@@ -1,0 +1,24 @@
+name: "🏁 CD Production"
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  register-production:
+    name: "🏁 01 · Registrar produção lógica"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: "📌 01 · Registrar promoção final da VPC"
+        run: |
+          echo "A VPC real é provisionada somente em development no AWS Academy."
+          echo "Este estágio registra a promoção lógica para produção e mantém rastreabilidade do Git Flow."

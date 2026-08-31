@@ -1,0 +1,288 @@
+name: "☁️ AWS Deploy VPC"
+
+on:
+  workflow_call:
+    inputs:
+      environment_name:
+        description: "GitHub Environment usado pelo deploy."
+        required: true
+        type: string
+    outputs:
+      terraform_action:
+        description: "Ação Terraform resolvida: apply ou destroy."
+        value: ${{ jobs.resolve_action.outputs.terraform_action }}
+
+env:
+  TF_WORKING_DIRECTORY: infra/terraform/environments/dev
+  SSM_VPC_PREFIX: /oficina-mecanica/dev/vpc
+
+jobs:
+  resolve_action:
+    name: "🔎 01 · Resolver ação do Terraform"
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.environment_name }}
+    outputs:
+      terraform_action: ${{ steps.resolve_terraform_action.outputs.terraform_action }}
+
+    steps:
+      - name: "📥 01 · Baixar código do repositório"
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: "🚦 02 · Ler terraform-action.env e validar troca segura de destroy"
+        id: resolve_terraform_action
+        env:
+          GITHUB_BEFORE: ${{ github.event.before }}
+          GITHUB_AFTER: ${{ github.sha }}
+        run: |
+          control_file="$TF_WORKING_DIRECTORY/terraform-action.env"
+          terraform_action="apply"
+
+          if [ -f "$control_file" ]; then
+            configured_action="$(grep -E '^[[:space:]]*TERRAFORM_ACTION[[:space:]]*=' "$control_file" | tail -n 1 | cut -d '=' -f 2- | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)"
+
+            if [ -n "$configured_action" ]; then
+              terraform_action="$configured_action"
+            fi
+          fi
+
+          case "$terraform_action" in
+            apply|destroy)
+              ;;
+            *)
+              echo "::error::TERRAFORM_ACTION '$terraform_action' inválido. Use 'apply' ou 'destroy'."
+              exit 1
+              ;;
+          esac
+
+          if [ "$terraform_action" = "destroy" ]; then
+            destroy_control_changed="false"
+
+            if [ -z "$GITHUB_BEFORE" ] || [ "$GITHUB_BEFORE" = "0000000000000000000000000000000000000000" ]; then
+              destroy_control_changed="true"
+            elif git diff --name-only "$GITHUB_BEFORE" "$GITHUB_AFTER" -- "$control_file" | grep -qx "$control_file"; then
+              destroy_control_changed="true"
+            fi
+
+            if [ "$destroy_control_changed" != "true" ]; then
+              echo "::error::TERRAFORM_ACTION=destroy está configurado, mas terraform-action.env não mudou neste push. Abra um PR dedicado de destroy."
+              exit 1
+            fi
+
+            echo "::warning::TERRAFORM_ACTION=destroy detectado. Esta execução destruirá a VPC gerenciada pelo Terraform."
+          fi
+
+          if [ "$terraform_action" = "apply" ]; then
+            echo "::notice::>>> AÇÃO DECIDIDA: APPLY (criar/atualizar VPC) <<<"
+          else
+            echo "::notice::>>> AÇÃO DECIDIDA: DESTROY (destruir VPC) <<<"
+          fi
+
+          echo "terraform_action=$terraform_action" >> "$GITHUB_OUTPUT"
+
+  prepare_and_plan:
+    name: "📋 02 · Preparar variáveis e gerar plano"
+    needs: resolve_action
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.environment_name }}
+    outputs:
+      vpc_id_before_destroy: ${{ steps.capture_destroy_context.outputs.vpc_id_before_destroy }}
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+      TERRAFORM_ACTION: ${{ needs.resolve_action.outputs.terraform_action }}
+
+    steps:
+      - name: "📥 01 · Baixar código do repositório"
+        uses: actions/checkout@v7
+
+      - name: "🔑 02 · Configurar credenciais AWS"
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: "🛠️ 03 · Instalar Terraform"
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_wrapper: false
+
+      - name: "📦 04 · Restaurar cache do state Terraform"
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            ${{ env.TF_WORKING_DIRECTORY }}/terraform.tfstate
+            ${{ env.TF_WORKING_DIRECTORY }}/terraform.tfstate.backup
+          key: tfstate-vpc-${{ inputs.environment_name }}-${{ github.run_id }}
+          restore-keys: |
+            tfstate-vpc-${{ inputs.environment_name }}-
+
+      - name: "📝 05 · Escrever variáveis do Terraform"
+        run: |
+          cat > "$TF_WORKING_DIRECTORY/zz_ci.auto.tfvars.json" <<JSON
+          {
+            "aws_region": "$AWS_REGION"
+          }
+          JSON
+
+      - name: "🚀 06 · Inicializar Terraform"
+        run: terraform -chdir="$TF_WORKING_DIRECTORY" init -input=false
+
+      - name: "🔍 07 · Validar configuração Terraform"
+        run: terraform -chdir="$TF_WORKING_DIRECTORY" validate
+
+      - name: "🛡️ 08 · Capturar VPC atual antes do destroy"
+        id: capture_destroy_context
+        if: env.TERRAFORM_ACTION == 'destroy'
+        run: |
+          set -euo pipefail
+
+          if ! terraform -chdir="$TF_WORKING_DIRECTORY" state show module.vpc.aws_vpc.this > vpc-state.txt; then
+            echo "::error::Destroy bloqueado: a VPC não foi encontrada no Terraform state restaurado. Reconcilie o state antes de destruir."
+            exit 1
+          fi
+
+          vpc_id="$(awk -F '= ' '/^[[:space:]]*id[[:space:]]*=/{gsub(/\"/, "", $2); print $2; exit}' vpc-state.txt)"
+
+          if [ -z "$vpc_id" ]; then
+            echo "::error::Destroy bloqueado: não foi possível identificar o ID da VPC no state."
+            exit 1
+          fi
+
+          aws ec2 describe-vpcs --vpc-ids "$vpc_id" --query 'Vpcs[0].VpcId' --output text
+          echo "vpc_id_before_destroy=$vpc_id" >> "$GITHUB_OUTPUT"
+          echo "VPC capturada para validação pós-destroy: $vpc_id"
+
+      - name: "📐 09 · Gerar plano do Terraform (apply)"
+        if: env.TERRAFORM_ACTION == 'apply'
+        run: terraform -chdir="$TF_WORKING_DIRECTORY" plan -input=false -out=tfplan
+
+      - name: "📐 09 · Gerar plano do Terraform (destroy)"
+        if: env.TERRAFORM_ACTION == 'destroy'
+        run: terraform -chdir="$TF_WORKING_DIRECTORY" plan -destroy -input=false -out=tfplan
+
+      - name: "⬆️ 10 · Publicar plano do Terraform como artefato"
+        uses: actions/upload-artifact@v7
+        with:
+          name: tfplan-vpc-${{ github.run_id }}
+          path: ${{ env.TF_WORKING_DIRECTORY }}/tfplan
+          retention-days: 1
+          if-no-files-found: error
+
+  apply_or_destroy:
+    name: "☁️ 03 · Aplicar ou destruir VPC"
+    needs:
+      - resolve_action
+      - prepare_and_plan
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.environment_name }}
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+      TERRAFORM_ACTION: ${{ needs.resolve_action.outputs.terraform_action }}
+      VPC_ID_BEFORE_DESTROY: ${{ needs.prepare_and_plan.outputs.vpc_id_before_destroy }}
+
+    steps:
+      - name: "📥 01 · Baixar código do repositório"
+        uses: actions/checkout@v7
+
+      - name: "🔑 02 · Configurar credenciais AWS"
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: "🛠️ 03 · Instalar Terraform"
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_wrapper: false
+
+      - name: "🚀 04 · Inicializar Terraform"
+        run: terraform -chdir="$TF_WORKING_DIRECTORY" init -input=false
+
+      - name: "📦 05 · Restaurar cache do state Terraform"
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            ${{ env.TF_WORKING_DIRECTORY }}/terraform.tfstate
+            ${{ env.TF_WORKING_DIRECTORY }}/terraform.tfstate.backup
+          key: tfstate-vpc-${{ inputs.environment_name }}-${{ github.run_id }}
+          restore-keys: |
+            tfstate-vpc-${{ inputs.environment_name }}-
+
+      - name: "⬇️ 06 · Baixar plano do Terraform publicado"
+        uses: actions/download-artifact@v8
+        with:
+          name: tfplan-vpc-${{ github.run_id }}
+          path: ${{ env.TF_WORKING_DIRECTORY }}
+
+      - name: "✅ 07 · Aplicar plano do Terraform"
+        run: terraform -chdir="$TF_WORKING_DIRECTORY" apply -input=false -auto-approve tfplan
+
+      - name: "💾 08 · Salvar cache final do state Terraform"
+        if: always()
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            ${{ env.TF_WORKING_DIRECTORY }}/terraform.tfstate
+            ${{ env.TF_WORKING_DIRECTORY }}/terraform.tfstate.backup
+          key: tfstate-vpc-${{ inputs.environment_name }}-${{ github.run_id }}
+
+      - name: "🔎 09 · Validar VPC real após apply"
+        if: env.TERRAFORM_ACTION == 'apply'
+        run: |
+          set -euo pipefail
+
+          vpc_id="$(terraform -chdir="$TF_WORKING_DIRECTORY" output -raw vpc_id)"
+          public_subnet_ids="$(terraform -chdir="$TF_WORKING_DIRECTORY" output -json public_subnet_ids)"
+          private_subnet_ids="$(terraform -chdir="$TF_WORKING_DIRECTORY" output -json private_subnet_ids)"
+
+          vpc_state="$(aws ec2 describe-vpcs --vpc-ids "$vpc_id" --query 'Vpcs[0].State' --output text)"
+          if [ "$vpc_state" != "available" ]; then
+            echo "::error::VPC $vpc_id não está available. Estado atual: $vpc_state"
+            exit 1
+          fi
+
+          public_count="$(echo "$public_subnet_ids" | jq 'length')"
+          private_count="$(echo "$private_subnet_ids" | jq 'length')"
+
+          if [ "$public_count" -lt 2 ] || [ "$private_count" -lt 2 ]; then
+            echo "::error::Quantidade de subnets inesperada. Públicas=$public_count Privadas=$private_count"
+            exit 1
+          fi
+
+          ssm_vpc_id="$(aws ssm get-parameter --name "$SSM_VPC_PREFIX/id" --query 'Parameter.Value' --output text)"
+          if [ "$ssm_vpc_id" != "$vpc_id" ]; then
+            echo "::error::Parâmetro SSM de VPC divergente. Terraform=$vpc_id SSM=$ssm_vpc_id"
+            exit 1
+          fi
+
+          echo "VPC $vpc_id validada com sucesso na AWS e no SSM."
+
+      - name: "🔎 09 · Validar remoção real após destroy"
+        if: env.TERRAFORM_ACTION == 'destroy'
+        run: |
+          set -euo pipefail
+
+          if [ -z "$VPC_ID_BEFORE_DESTROY" ]; then
+            echo "::error::Destroy sem VPC_ID_BEFORE_DESTROY. Não é seguro confirmar remoção."
+            exit 1
+          fi
+
+          if aws ec2 describe-vpcs --vpc-ids "$VPC_ID_BEFORE_DESTROY" >/dev/null 2>&1; then
+            echo "::error::A VPC $VPC_ID_BEFORE_DESTROY ainda existe na AWS após o destroy."
+            exit 1
+          fi
+
+          if aws ssm get-parameter --name "$SSM_VPC_PREFIX/id" >/dev/null 2>&1; then
+            echo "::error::O parâmetro SSM $SSM_VPC_PREFIX/id ainda existe após o destroy."
+            exit 1
+          fi
+
+          echo "VPC $VPC_ID_BEFORE_DESTROY removida e parâmetros SSM limpos."
