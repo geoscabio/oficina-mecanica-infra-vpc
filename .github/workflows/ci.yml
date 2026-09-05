@@ -20,6 +20,59 @@ env:
   TERRAFORM_VERSION: "1.15.8"
 
 jobs:
+  validate_git_flow:
+    name: "🔀 00 · Validar fluxo de branches"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: "🔀 01 · Conferir origem e destino do PR"
+        env:
+          BASE_BRANCH: ${{ github.base_ref }}
+          HEAD_BRANCH: ${{ github.head_ref }}
+        run: |
+          echo "Base branch: $BASE_BRANCH"
+          echo "Head branch: $HEAD_BRANCH"
+
+          case "$BASE_BRANCH" in
+            develop)
+              case "$HEAD_BRANCH" in
+                main|release|release/*)
+                  echo "Protected stage branches must not open pull requests back to develop."
+                  exit 1
+                  ;;
+                *)
+                  echo "Pull request to develop follows the Git Flow entry point."
+                  ;;
+              esac
+              ;;
+
+            release|release/*)
+              if [ "$HEAD_BRANCH" != "develop" ]; then
+                echo "Pull requests to release must come from develop."
+                exit 1
+              fi
+
+              echo "Pull request to release follows the Git Flow promotion path."
+              ;;
+
+            main)
+              case "$HEAD_BRANCH" in
+                release|release/*)
+                  echo "Pull request to main follows the Git Flow production promotion path."
+                  ;;
+                *)
+                  echo "Pull requests to main must come from release or release/*."
+                  exit 1
+                  ;;
+              esac
+              ;;
+
+            *)
+              echo "Unsupported protected base branch: $BASE_BRANCH"
+              exit 1
+              ;;
+          esac
+
   validate_terraform:
     name: "🌐 01 · Validar Terraform da VPC"
     runs-on: ubuntu-latest
@@ -47,12 +100,18 @@ jobs:
     name: "🚦 02 · Quality gate"
     runs-on: ubuntu-latest
     needs:
+      - validate_git_flow
       - validate_terraform
     if: always()
 
     steps:
       - name: "🚦 01 · Conferir status dos jobs"
         run: |
+          if [ "${{ needs.validate_git_flow.result }}" != "success" ]; then
+            echo "A validação do Git Flow falhou."
+            exit 1
+          fi
+
           if [ "${{ needs.validate_terraform.result }}" != "success" ]; then
             echo "A validação Terraform da VPC falhou."
             exit 1

@@ -55,7 +55,8 @@ A VPC é a primeira peça da infraestrutura. Os demais repositórios devem consu
 | Internet Gateway | `oficina-mecanica-vpc-dev-igw` | Saída/entrada pública da VPC. |
 | NAT Gateway | `oficina-mecanica-vpc-dev-nat` | Saída para internet das subnets privadas. |
 | Route Tables | `oficina-mecanica-vpc-dev-*-rt` | Rotas públicas e privadas. |
-| SSM Parameters | `/oficina-mecanica/dev/vpc/*` | Compartilhamento dos outputs entre repositórios. |
+| SSM Parameters | `/oficina-mecanica/development/vpc/*` | Compartilhamento dos outputs entre repositórios. |
+| SSM Status | `/oficina-mecanica/development/status/vpc` | Marcador usado por repositórios dependentes. |
 
 ---
 
@@ -75,7 +76,7 @@ A VPC é a primeira peça da infraestrutura. Os demais repositórios devem consu
 
 Pré-requisitos:
 
-- Terraform instalado.
+- Terraform `1.15.8` instalado.
 - AWS CLI autenticado no AWS Academy.
 - Região `us-east-1`.
 
@@ -125,6 +126,17 @@ Valores aceitos:
 TERRAFORM_ACTION=apply
 TERRAFORM_ACTION=destroy
 ```
+
+### Proteção de branches
+
+As branches `develop`, `release`, `release/*` e `main` devem usar ruleset/branch protection com:
+
+- PR obrigatório antes do merge;
+- pelo menos uma aprovação humana;
+- status check `🚦 02 · Quality gate` obrigatório;
+- bloqueio de force push e deleção.
+
+Além da configuração no GitHub, o job `validate_git_flow` bloqueia PR fora do caminho `branch de trabalho -> develop -> release -> main`.
 
 ---
 
