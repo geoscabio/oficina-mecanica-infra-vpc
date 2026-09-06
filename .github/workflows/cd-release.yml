@@ -1,5 +1,5 @@
 name: "🔀 CD Release"
-run-name: "🔀 Promover release para production"
+run-name: "🔀 Registrar deploy em release"
 
 on:
   push:

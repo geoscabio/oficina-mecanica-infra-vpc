@@ -132,14 +132,18 @@ TERRAFORM_ACTION=destroy
 
 ### Proteção de branches
 
-As branches `develop`, `release`, `release/*` e `main` devem usar ruleset/branch protection com:
+As branches `develop`, `release`, `release/*` e `main` usam dois rulesets ativos:
 
-- PR obrigatório antes do merge;
-- pelo menos uma aprovação humana;
-- status check `🚦 03 · Quality gate` obrigatório;
-- bloqueio de force push e deleção.
+- **🔒 Proteção Git Flow, sem bypass:** PR obrigatório, conversas resolvidas, checks `🔀 01 · Validar fluxo de branches` e `🚦 03 · Quality gate` aprovados e bloqueio de push direto, force push e deleção. A lista de bypass fica vazia, inclusive para admins e maintainers.
+- **👥 Aprovação de PR:** uma aprovação humana, descarte de aprovações antigas e aprovação por alguém diferente do último autor do push. Somente esta regra permite bypass via PR para `geoscabio`, `sousagabriel14`, maintainers e admins.
 
-Além da configuração no GitHub, o job `validate_git_flow` bloqueia PR fora do caminho `branch de trabalho -> develop -> release -> main`.
+O bypass dispensa a revisão de outra pessoa, nunca o fluxo ou os checks. O GitHub permite abrir um PR fora do caminho `branch de trabalho -> develop -> release -> main`, mas a validação bloqueia seu merge. Hotfix permanece pós-entrega, sem exceção habilitada.
+
+O ruleset de fluxo usa `strict_required_status_checks_policy=false` para não exigir promoção inversa entre branches; checks continuam obrigatórios e conflitos reais precisam ser resolvidos. O proprietário ainda pode alterar as configurações administrativas: o bloqueio depende dos rulesets ativos e da integridade dos workflows de validação.
+
+Repetir este padrão em cada novo repositório. A configuração detalhada está no [guia de GitHub Actions da API](https://github.com/geoscabio/oficina-mecanica-api/blob/develop/docs/deploy/github-actions.md#-proteções-obrigatórias-recomendadas).
+
+O título de execução do `🔀 CD Release` é `🔀 Registrar deploy em release`; produção só é registrada depois do merge em `main`.
 
 ---
 
