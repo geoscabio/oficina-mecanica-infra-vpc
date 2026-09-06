@@ -109,10 +109,12 @@ A esteira segue o mesmo modelo da API, mas focada somente em Terraform:
 
 | Workflow | Quando roda | O que faz |
 | --- | --- | --- |
-| `✅ CI` | Pull request para `develop`, `release` ou `main` | Verifica formatação, inicialização e validação do Terraform. |
+| `CI Development` | Pull request para `develop` | Verifica formatação, inicialização e validação do Terraform. |
+| `CI Release` | Pull request para `release` ou `release/**` | Verifica formatação, inicialização e validação do Terraform. |
+| `CI Production` | Pull request para `main` | Verifica formatação, inicialização e validação do Terraform. |
 | `🚀 CD Development` | Push na `develop` | Executa `apply` ou `destroy` em `development`. |
-| `📦 CD Release` | Push na `release` | Registra promoção lógica para homologação. |
-| `🏁 CD Production` | Push na `main` | Registra promoção lógica para produção. |
+| `🔀 CD Release` | Push na `release` ou `release/**` | Registra promoção lógica para homologation e abre PR para `main` quando habilitado. |
+| `🏁 CD Production` | Push na `main` | Registra promoção lógica para production. |
 
 A ação real do Terraform é controlada por:
 
