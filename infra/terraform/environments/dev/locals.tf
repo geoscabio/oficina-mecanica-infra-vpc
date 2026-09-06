@@ -8,5 +8,6 @@ locals {
     Repository  = "oficina-mecanica-infra-vpc"
   }
 
-  ssm_prefix = "/oficina-mecanica/dev/vpc"
+  ssm_prefix        = "/oficina-mecanica/development/vpc"
+  ssm_status_prefix = "/oficina-mecanica/development/status"
 }

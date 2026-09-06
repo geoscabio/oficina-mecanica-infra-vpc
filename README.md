@@ -55,7 +55,8 @@ A VPC é a primeira peça da infraestrutura. Os demais repositórios devem consu
 | Internet Gateway | `oficina-mecanica-vpc-dev-igw` | Saída/entrada pública da VPC. |
 | NAT Gateway | `oficina-mecanica-vpc-dev-nat` | Saída para internet das subnets privadas. |
 | Route Tables | `oficina-mecanica-vpc-dev-*-rt` | Rotas públicas e privadas. |
-| SSM Parameters | `/oficina-mecanica/dev/vpc/*` | Compartilhamento dos outputs entre repositórios. |
+| SSM Parameters | `/oficina-mecanica/development/vpc/*` | Compartilhamento dos outputs entre repositórios. |
+| SSM Status | `/oficina-mecanica/development/status/vpc` | Marcador usado por repositórios dependentes. |
 
 ---
 
@@ -75,7 +76,7 @@ A VPC é a primeira peça da infraestrutura. Os demais repositórios devem consu
 
 Pré-requisitos:
 
-- Terraform instalado.
+- Terraform `1.15.8` instalado.
 - AWS CLI autenticado no AWS Academy.
 - Região `us-east-1`.
 
@@ -108,10 +109,13 @@ A esteira segue o mesmo modelo da API, mas focada somente em Terraform:
 
 | Workflow | Quando roda | O que faz |
 | --- | --- | --- |
-| `✅ CI` | Pull request para `develop`, `release` ou `main` | Verifica formatação, inicialização e validação do Terraform. |
+| `🧪 CI Development` | Pull request para `develop` | Verifica formatação, inicialização e validação do Terraform. |
+| `🔎 CI Release` | Pull request para `release` ou `release/**` | Verifica formatação, inicialização e validação do Terraform. |
+| `🛡️ CI Production` | Pull request para `main` | Verifica formatação, inicialização e validação do Terraform. |
 | `🚀 CD Development` | Push na `develop` | Executa `apply` ou `destroy` em `development`. |
-| `📦 CD Release` | Push na `release` | Registra promoção lógica para homologação. |
-| `🏁 CD Production` | Push na `main` | Registra promoção lógica para produção. |
+| `☁️ AWS Deploy` | Chamado pelo CD de desenvolvimento | Executa `apply` ou `destroy` da VPC conforme controle versionado. |
+| `🔀 CD Release` | Push na `release` ou `release/**` | Registra promoção lógica para homologation e abre PR para `main` quando habilitado. |
+| `🏁 CD Production` | Push na `main` | Registra promoção lógica para production. |
 
 A ação real do Terraform é controlada por:
 
@@ -125,6 +129,21 @@ Valores aceitos:
 TERRAFORM_ACTION=apply
 TERRAFORM_ACTION=destroy
 ```
+
+### Proteção de branches
+
+As branches `develop`, `release`, `release/*` e `main` usam dois rulesets ativos:
+
+- **🔒 Proteção Git Flow, sem bypass:** PR obrigatório, conversas resolvidas, checks `🔀 01 · Validar fluxo de branches` e `🚦 03 · Quality gate` aprovados e bloqueio de push direto, force push e deleção. A lista de bypass fica vazia, inclusive para admins e maintainers.
+- **👥 Aprovação de PR:** uma aprovação humana, descarte de aprovações antigas e aprovação por alguém diferente do último autor do push. Somente esta regra permite bypass via PR para `geoscabio`, `sousagabriel14`, maintainers e admins.
+
+O bypass dispensa a revisão de outra pessoa, nunca o fluxo ou os checks. O GitHub permite abrir um PR fora do caminho `branch de trabalho -> develop -> release -> main`, mas a validação bloqueia seu merge. Hotfix permanece pós-entrega, sem exceção habilitada.
+
+O ruleset de fluxo usa `strict_required_status_checks_policy=false` para não exigir promoção inversa entre branches; checks continuam obrigatórios e conflitos reais precisam ser resolvidos. O proprietário ainda pode alterar as configurações administrativas: o bloqueio depende dos rulesets ativos e da integridade dos workflows de validação.
+
+Repetir este padrão em cada novo repositório. A configuração detalhada está no [guia de GitHub Actions da API](https://github.com/geoscabio/oficina-mecanica-api/blob/develop/docs/deploy/github-actions.md#-proteções-obrigatórias-recomendadas).
+
+O título de execução do `🔀 CD Release` é `🔀 Registrar deploy em release`; produção só é registrada depois do merge em `main`.
 
 ---
 
