@@ -27,3 +27,8 @@ output "ssm_vpc_prefix" {
   description = "Prefixo dos parâmetros SSM publicados para os demais repositórios."
   value       = local.ssm_prefix
 }
+
+output "ssm_vpc_status_parameter_name" {
+  description = "Nome do parâmetro SSM que marca a VPC como pronta para dependentes."
+  value       = "${local.ssm_status_prefix}/vpc"
+}

@@ -1,5 +1,5 @@
 resource "aws_ssm_parameter" "vpc_id" {
-  name        = "${local.ssm_prefix}/id"
+  name        = "${local.ssm_prefix}/vpc_id"
   description = "ID da VPC compartilhada da Oficina Mecânica."
   type        = "String"
   value       = module.vpc.vpc_id
@@ -8,7 +8,7 @@ resource "aws_ssm_parameter" "vpc_id" {
 }
 
 resource "aws_ssm_parameter" "public_subnet_ids" {
-  name        = "${local.ssm_prefix}/public-subnet-ids"
+  name        = "${local.ssm_prefix}/public_subnet_ids"
   description = "IDs das subnets públicas da Oficina Mecânica."
   type        = "StringList"
   value       = join(",", module.vpc.public_subnet_ids)
@@ -17,7 +17,7 @@ resource "aws_ssm_parameter" "public_subnet_ids" {
 }
 
 resource "aws_ssm_parameter" "private_subnet_ids" {
-  name        = "${local.ssm_prefix}/private-subnet-ids"
+  name        = "${local.ssm_prefix}/private_subnet_ids"
   description = "IDs das subnets privadas da Oficina Mecânica."
   type        = "StringList"
   value       = join(",", module.vpc.private_subnet_ids)
@@ -26,7 +26,7 @@ resource "aws_ssm_parameter" "private_subnet_ids" {
 }
 
 resource "aws_ssm_parameter" "private_subnet_cidrs" {
-  name        = "${local.ssm_prefix}/private-subnet-cidrs"
+  name        = "${local.ssm_prefix}/private_subnet_cidrs"
   description = "CIDRs das subnets privadas da Oficina Mecânica."
   type        = "StringList"
   value       = join(",", module.vpc.private_subnet_cidrs)
@@ -35,7 +35,7 @@ resource "aws_ssm_parameter" "private_subnet_cidrs" {
 }
 
 resource "aws_ssm_parameter" "nat_gateway_id" {
-  name        = "${local.ssm_prefix}/nat-gateway-id"
+  name        = "${local.ssm_prefix}/nat_gateway_id"
   description = "ID do NAT Gateway da Oficina Mecânica."
   type        = "String"
   value       = module.vpc.nat_gateway_id
@@ -44,7 +44,7 @@ resource "aws_ssm_parameter" "nat_gateway_id" {
 }
 
 resource "aws_ssm_parameter" "status" {
-  name        = "${local.ssm_prefix}/status"
+  name        = "${local.ssm_status_prefix}/vpc"
   description = "Status operacional da VPC compartilhada da Oficina Mecânica."
   type        = "String"
   value       = "ready"
