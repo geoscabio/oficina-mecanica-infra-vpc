@@ -109,10 +109,11 @@ A esteira segue o mesmo modelo da API, mas focada somente em Terraform:
 
 | Workflow | Quando roda | O que faz |
 | --- | --- | --- |
-| `CI Development` | Pull request para `develop` | Verifica formatação, inicialização e validação do Terraform. |
-| `CI Release` | Pull request para `release` ou `release/**` | Verifica formatação, inicialização e validação do Terraform. |
-| `CI Production` | Pull request para `main` | Verifica formatação, inicialização e validação do Terraform. |
+| `🧪 CI Development` | Pull request para `develop` | Verifica formatação, inicialização e validação do Terraform. |
+| `🔎 CI Release` | Pull request para `release` ou `release/**` | Verifica formatação, inicialização e validação do Terraform. |
+| `🛡️ CI Production` | Pull request para `main` | Verifica formatação, inicialização e validação do Terraform. |
 | `🚀 CD Development` | Push na `develop` | Executa `apply` ou `destroy` em `development`. |
+| `☁️ AWS Deploy` | Chamado pelo CD de desenvolvimento | Executa `apply` ou `destroy` da VPC conforme controle versionado. |
 | `🔀 CD Release` | Push na `release` ou `release/**` | Registra promoção lógica para homologation e abre PR para `main` quando habilitado. |
 | `🏁 CD Production` | Push na `main` | Registra promoção lógica para production. |
 

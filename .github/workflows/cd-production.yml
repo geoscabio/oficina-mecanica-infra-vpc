@@ -1,4 +1,5 @@
 name: "🏁 CD Production"
+run-name: "🏁 Registrar deploy em production"
 
 on:
   push:

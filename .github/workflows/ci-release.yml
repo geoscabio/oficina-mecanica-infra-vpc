@@ -1,4 +1,5 @@
-name: "CI Release"
+name: "🔎 CI Release"
+run-name: "🔎 Validar PR para release"
 
 on:
   pull_request:

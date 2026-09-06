@@ -1,4 +1,5 @@
-name: "CI Development"
+name: "🧪 CI Development"
+run-name: "🧪 Validar PR para develop"
 
 on:
   pull_request:

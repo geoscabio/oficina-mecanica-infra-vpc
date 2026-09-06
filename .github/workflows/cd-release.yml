@@ -1,4 +1,5 @@
 name: "🔀 CD Release"
+run-name: "🔀 Promover release para production"
 
 on:
   push:
@@ -62,4 +63,4 @@ jobs:
             --base main \
             --head "$SOURCE_BRANCH" \
             --title "ci(production): deploy $SOURCE_BRANCH to main" \
-            --body "PR automatico aberto apos deploy logico em homologation. Este PR deve exigir aprovacao manual antes do merge para \`main\`."
+            --body "PR automático aberto após deploy lógico em homologation. Este PR deve exigir aprovação manual antes do merge para \`main\`."

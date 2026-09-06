@@ -1,4 +1,5 @@
 name: "🚀 CD Development"
+run-name: "🚀 Deploy em development"
 
 on:
   push:
@@ -120,4 +121,4 @@ jobs:
             --base "$RELEASE_BRANCH" \
             --head develop \
             --title "ci(release): deploy develop to $RELEASE_BRANCH" \
-            --body "PR automatico aberto apos deploy bem-sucedido em development. O merge para \`$RELEASE_BRANCH\` continua manual para manter revisao e rastreabilidade."
+            --body "PR automático aberto após deploy bem-sucedido em development. O merge para \`$RELEASE_BRANCH\` continua manual para manter revisão e rastreabilidade."

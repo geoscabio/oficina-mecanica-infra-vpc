@@ -1,4 +1,5 @@
-name: "CI Production"
+name: "🛡️ CI Production"
+run-name: "🛡️ Validar PR para production"
 
 on:
   pull_request:

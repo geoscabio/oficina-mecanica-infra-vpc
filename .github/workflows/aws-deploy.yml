@@ -1,4 +1,5 @@
-name: "☁️ AWS Deploy VPC"
+name: "☁️ AWS Deploy"
+run-name: "☁️ Executar deploy AWS da VPC em ${{ inputs.environment_name }}"
 
 on:
   workflow_call:
