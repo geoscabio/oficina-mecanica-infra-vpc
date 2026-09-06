@@ -64,7 +64,7 @@ jobs:
           echo "CI required: $ci_required"
 
   validate_git_flow:
-    name: "🔀 00 · Validar fluxo de branches"
+    name: "🔀 01 · Validar fluxo de branches"
     runs-on: ubuntu-latest
 
     steps:
@@ -117,7 +117,7 @@ jobs:
           esac
 
   validate_terraform:
-    name: "🌐 01 · Validar Terraform da VPC"
+    name: "🌐 02 · Validar Terraform da VPC"
     needs: detect_ci_scope
     if: needs.detect_ci_scope.outputs.ci_required == 'true'
     runs-on: ubuntu-latest
@@ -142,7 +142,7 @@ jobs:
         run: terraform -chdir="$TF_WORKING_DIRECTORY" validate
 
   quality_gate:
-    name: "🚦 02 · Quality gate"
+    name: "🚦 03 · Quality gate"
     runs-on: ubuntu-latest
     needs:
       - detect_ci_scope

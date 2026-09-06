@@ -136,7 +136,7 @@ As branches `develop`, `release`, `release/*` e `main` devem usar ruleset/branch
 
 - PR obrigatório antes do merge;
 - pelo menos uma aprovação humana;
-- status check `🚦 02 · Quality gate` obrigatório;
+- status check `🚦 03 · Quality gate` obrigatório;
 - bloqueio de force push e deleção.
 
 Além da configuração no GitHub, o job `validate_git_flow` bloqueia PR fora do caminho `branch de trabalho -> develop -> release -> main`.
