@@ -1,4 +1,4 @@
-name: "📦 CD Release"
+name: "🔀 CD Release"
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
       - "release/**"
 
 permissions:
-  contents: write
+  contents: read
   pull-requests: write
 
 concurrency:
@@ -15,21 +15,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  register-homologation:
-    name: "📦 01 · Registrar homologação lógica"
+  deploy-homologation:
+    name: "🚀 01 · Deploy lógico em homologation"
     runs-on: ubuntu-latest
 
     steps:
-      - name: "📌 01 · Registrar promoção da VPC"
+      - name: "📝 01 · Registrar deploy lógico"
         run: |
-          echo "A VPC real é provisionada somente em development no AWS Academy."
-          echo "Este estágio registra a promoção lógica para homologação."
+          echo "Homologation deploy is logical in this Tech Challenge repository."
+          echo "No AWS homologation resources are provisioned because the physical environment does not exist."
+          echo "The deploy flow continues through pull requests to keep the Git Flow complete and auditable."
 
   open-pr-to-main:
     name: "🔀 02 · Abrir PR para main"
     runs-on: ubuntu-latest
-    needs: register-homologation
-    if: vars.AUTO_PR_ENABLED == 'true'
+    needs: deploy-homologation
+    if: needs.deploy-homologation.result == 'success' && vars.AUTO_PR_ENABLED == 'true'
 
     steps:
       - name: "📥 01 · Baixar código do repositório"
@@ -40,25 +41,25 @@ jobs:
       - name: "🔀 02 · Criar ou manter PR para main"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_BRANCH: ${{ github.ref_name }}
         run: |
-          source_branch="${GITHUB_REF_NAME}"
-          git fetch origin main "$source_branch"
+          git fetch origin main "$SOURCE_BRANCH"
 
-          pending_commits="$(git rev-list --count "origin/main..origin/$source_branch")"
+          pending_commits="$(git rev-list --count "origin/main..origin/$SOURCE_BRANCH")"
           if [ "$pending_commits" -eq 0 ]; then
-            echo "Sem commits pendentes de $source_branch para main."
+            echo "No pending commits from $SOURCE_BRANCH to main."
             exit 0
           fi
 
-          existing_pr="$(gh pr list --base main --head "$source_branch" --state open --json number --jq '.[0].number // empty')"
+          existing_pr="$(gh pr list --base main --head "$SOURCE_BRANCH" --state open --json number --jq '.[0].number // empty')"
 
           if [ -n "$existing_pr" ]; then
-            echo "PR #$existing_pr já existe para $source_branch -> main."
+            echo "Pull request #$existing_pr already exists for $SOURCE_BRANCH -> main."
             exit 0
           fi
 
           gh pr create \
             --base main \
-            --head "$source_branch" \
-            --title "ci(vpc): promover rede para main" \
-            --body "PR automático aberto após promoção lógica da VPC em homologação. O merge para \`main\` continua manual para manter revisão e rastreabilidade."
+            --head "$SOURCE_BRANCH" \
+            --title "ci(production): deploy $SOURCE_BRANCH to main" \
+            --body "PR automatico aberto apos deploy logico em homologation. Este PR deve exigir aprovacao manual antes do merge para \`main\`."

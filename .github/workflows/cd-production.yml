@@ -13,12 +13,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  register-production:
-    name: "🏁 01 · Registrar produção lógica"
+  deploy-production:
+    name: "🚀 01 · Deploy lógico em production"
     runs-on: ubuntu-latest
 
     steps:
-      - name: "📌 01 · Registrar promoção final da VPC"
+      - name: "📝 01 · Registrar deploy lógico"
         run: |
-          echo "A VPC real é provisionada somente em development no AWS Academy."
-          echo "Este estágio registra a promoção lógica para produção e mantém rastreabilidade do Git Flow."
+          echo "Production deploy is logical in this Tech Challenge repository."
+          echo "No AWS production resources are provisioned because the physical environment does not exist."
+          echo "The main branch records the approved production deploy."
