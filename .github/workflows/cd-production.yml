@@ -2,12 +2,9 @@ name: "🏁 CD Production"
 run-name: "🏁 Registrar deploy em production"
 
 on:
-  push:
-    branches:
-      - main
+  workflow_call:
 
 permissions:
-  actions: read
   contents: read
 
 concurrency:
@@ -15,23 +12,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  await-ci:
-    name: "🚦 00 · Aguardar CI do commit"
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    outputs:
-      run_id: ${{ steps.ci.outputs.run_id }}
-    steps:
-      - uses: actions/checkout@v7
-      - name: "🚦 Verificar resultado da CI"
-        id: ci
-        uses: actions/github-script@v8
-        with:
-          script: |
-            await require('./.github/scripts/await-ci.cjs')({ github, context, core });
-
   deploy-production:
-    needs: await-ci
     name: "🚀 01 · Deploy lógico em production"
     runs-on: ubuntu-latest
 

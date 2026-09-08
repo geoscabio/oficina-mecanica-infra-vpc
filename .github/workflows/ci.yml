@@ -20,7 +20,7 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   TF_WORKING_DIRECTORY: infra/terraform/environments/dev
@@ -38,9 +38,6 @@ jobs:
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
-
-      - name: "🧪 Validar bloqueios entre CI e CD"
-        run: node --test .github/scripts/await-ci.test.cjs
 
       - name: "🔍 02 · Analisar arquivos alterados"
         id: detect
@@ -195,3 +192,32 @@ jobs:
           fi
 
           echo "All CI responsibilities passed."
+
+  cd_development:
+    name: "🚀 CD Development"
+    needs: quality_gate
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    permissions:
+      contents: write
+      pull-requests: write
+    uses: ./.github/workflows/cd-development.yml
+    secrets: inherit
+
+  cd_release:
+    name: "🔀 CD Release"
+    needs: quality_gate
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/release' || startsWith(github.ref, 'refs/heads/release/'))
+    permissions:
+      contents: read
+      pull-requests: write
+    uses: ./.github/workflows/cd-release.yml
+    secrets: inherit
+
+  cd_production:
+    name: "🏁 CD Production"
+    needs: quality_gate
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/cd-production.yml
+    secrets: inherit

@@ -2,13 +2,9 @@ name: "🔀 CD Release"
 run-name: "🔀 Registrar deploy em release"
 
 on:
-  push:
-    branches:
-      - release
-      - "release/**"
+  workflow_call:
 
 permissions:
-  actions: read
   contents: read
   pull-requests: write
 
@@ -17,23 +13,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  await-ci:
-    name: "🚦 00 · Aguardar CI do commit"
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    outputs:
-      run_id: ${{ steps.ci.outputs.run_id }}
-    steps:
-      - uses: actions/checkout@v7
-      - name: "🚦 Verificar resultado da CI"
-        id: ci
-        uses: actions/github-script@v8
-        with:
-          script: |
-            await require('./.github/scripts/await-ci.cjs')({ github, context, core });
-
   deploy-homologation:
-    needs: await-ci
     name: "🚀 01 · Deploy lógico em homologation"
     runs-on: ubuntu-latest
 
