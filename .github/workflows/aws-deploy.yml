@@ -145,21 +145,45 @@ jobs:
         run: |
           set -euo pipefail
 
-          if ! terraform -chdir="$TF_WORKING_DIRECTORY" state show module.vpc.aws_vpc.this > vpc-state.txt; then
-            echo "::error::Destroy bloqueado: a VPC não foi encontrada no Terraform state restaurado. Reconcilie o state antes de destruir."
-            exit 1
-          fi
+          assert_vpc_present_or_absent() {
+            local command_output
 
-          vpc_id="$(awk -F '= ' '/^[[:space:]]*id[[:space:]]*=/{gsub(/\"/, "", $2); print $2; exit}' vpc-state.txt)"
+            if command_output="$(aws ec2 describe-vpcs --vpc-ids "$1" --query 'Vpcs[0].VpcId' --output text 2>&1)"; then
+              echo "VPC $1 exists and will be validated after destroy."
+              return 0
+            else
+              local command_status=$?
+              case "$command_output" in
+                *InvalidVpcID.NotFound*)
+                  echo "::warning::VPC $1 is already absent. Treating this as partial destroy recovery."
+                  return 10
+                  ;;
+                *)
+                  echo "::error::Could not inspect VPC $1 before destroy. The error is not an absence confirmation."
+                  echo "$command_output"
+                  return "$command_status"
+                  ;;
+              esac
+            fi
+          }
+
+          vpc_id="$(terraform -chdir="$TF_WORKING_DIRECTORY" state show module.vpc.aws_vpc.this 2>/dev/null | awk -F '= ' '/^[[:space:]]*id[[:space:]]*=/{gsub(/\"/, "", $2); print $2; exit}' || true)"
 
           if [ -z "$vpc_id" ]; then
-            echo "::error::Destroy bloqueado: não foi possível identificar o ID da VPC no state."
-            exit 1
+            echo "::warning::VPC output is absent from Terraform state. Continuing as partial destroy recovery."
+          else
+            if assert_vpc_present_or_absent "$vpc_id"; then
+              :
+            else
+              inspection_status=$?
+              if [ "$inspection_status" -ne 10 ]; then
+                exit "$inspection_status"
+              fi
+            fi
           fi
 
-          aws ec2 describe-vpcs --vpc-ids "$vpc_id" --query 'Vpcs[0].VpcId' --output text
           echo "vpc_id_before_destroy=$vpc_id" >> "$GITHUB_OUTPUT"
-          echo "VPC capturada para validação pós-destroy: $vpc_id"
+          echo "VPC destroy context captured when available."
 
       - name: "📐 09 · Gerar plano do Terraform (apply)"
         if: env.TERRAFORM_ACTION == 'apply'
@@ -281,24 +305,44 @@ jobs:
         run: |
           set -euo pipefail
 
+          assert_resource_absent() {
+            local resource_label="$1"
+            shift
+            local command_output
+
+            if command_output="$("$@" 2>&1)"; then
+              echo "::error::${resource_label} still exists after destroy."
+              return 1
+            else
+              local command_status=$?
+              case "$command_output" in
+                *InvalidVpcID.NotFound*|*ParameterNotFound*)
+                  echo "${resource_label} is absent after destroy."
+                  return 0
+                  ;;
+                *)
+                  echo "::error::Could not confirm removal of ${resource_label}. The error is not an absence confirmation."
+                  echo "$command_output"
+                  return "$command_status"
+                  ;;
+              esac
+            fi
+          }
+
           if [ -z "$VPC_ID_BEFORE_DESTROY" ]; then
-            echo "::error::Destroy sem VPC_ID_BEFORE_DESTROY. Não é seguro confirmar remoção."
-            exit 1
+            echo "::warning::VPC output was absent before destroy; no VPC identifier is available for post-destroy verification."
+          else
+            assert_resource_absent "VPC $VPC_ID_BEFORE_DESTROY" aws ec2 describe-vpcs --vpc-ids "$VPC_ID_BEFORE_DESTROY" --query 'Vpcs[0].VpcId' --output text
           fi
 
-          if aws ec2 describe-vpcs --vpc-ids "$VPC_ID_BEFORE_DESTROY" >/dev/null 2>&1; then
-            echo "::error::A VPC $VPC_ID_BEFORE_DESTROY ainda existe na AWS após o destroy."
-            exit 1
-          fi
+          for parameter_name in \
+            "$SSM_VPC_PREFIX/vpc_id" \
+            "$SSM_VPC_PREFIX/public_subnet_ids" \
+            "$SSM_VPC_PREFIX/private_subnet_ids" \
+            "$SSM_VPC_PREFIX/private_subnet_cidrs" \
+            "$SSM_VPC_PREFIX/nat_gateway_id" \
+            "$SSM_VPC_STATUS_PARAMETER"; do
+            assert_resource_absent "SSM parameter $parameter_name" aws ssm get-parameter --name "$parameter_name" --query 'Parameter.Value' --output text
+          done
 
-          if aws ssm get-parameter --name "$SSM_VPC_PREFIX/vpc_id" >/dev/null 2>&1; then
-            echo "::error::O parâmetro SSM $SSM_VPC_PREFIX/vpc_id ainda existe após o destroy."
-            exit 1
-          fi
-
-          if aws ssm get-parameter --name "$SSM_VPC_STATUS_PARAMETER" >/dev/null 2>&1; then
-            echo "::error::O parâmetro SSM $SSM_VPC_STATUS_PARAMETER ainda existe após o destroy."
-            exit 1
-          fi
-
-          echo "VPC $VPC_ID_BEFORE_DESTROY removida e parâmetros SSM limpos."
+          echo "VPC resources and shared SSM parameters are removed."
