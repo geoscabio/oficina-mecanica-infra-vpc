@@ -13,6 +13,7 @@ Nenhum deploy, import, apply, destroy ou merge foi executado nesta auditoria.
 - PRs e pushes de branches protegidas usam o mesmo conjunto de validações.
 - CD exige CI `push` bem-sucedida do SHA, branch e repositório exatos.
 - Timeout, falha, cancelamento e ausência de CI bloqueiam a entrega.
+- Promoção verifica se a branch ainda aponta para o commit entregue, evitando incluir uma ponta posterior sem validação.
 - Concorrência do CD não interrompe operações Terraform em andamento.
 - Promoção para release exige sucesso da operação física; deploy pulado não é sucesso físico.
 - Arquivos não Markdown em `docs/` não escapam das validações de código.

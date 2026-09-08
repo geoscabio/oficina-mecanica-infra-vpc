@@ -63,6 +63,11 @@ jobs:
         run: |
           git fetch origin main "$SOURCE_BRANCH"
 
+          if [ "$(git rev-parse "origin/$SOURCE_BRANCH")" != "$GITHUB_SHA" ]; then
+            echo "Branch avançou após este commit. A promoção cabe ao CD do novo commit."
+            exit 0
+          fi
+
           pending_commits="$(git rev-list --count "origin/main..origin/$SOURCE_BRANCH")"
           if [ "$pending_commits" -eq 0 ]; then
             echo "No pending commits from $SOURCE_BRANCH to main."
