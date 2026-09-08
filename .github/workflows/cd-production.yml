@@ -7,14 +7,31 @@ on:
       - main
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref_name }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
+  await-ci:
+    name: "🚦 00 · Aguardar CI do commit"
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    outputs:
+      run_id: ${{ steps.ci.outputs.run_id }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: "🚦 Verificar resultado da CI"
+        id: ci
+        uses: actions/github-script@v8
+        with:
+          script: |
+            await require('./.github/scripts/await-ci.cjs')({ github, context, core });
+
   deploy-production:
+    needs: await-ci
     name: "🚀 01 · Deploy lógico em production"
     runs-on: ubuntu-latest
 

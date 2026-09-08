@@ -1,16 +1,25 @@
-name: "🧪 CI Development"
-run-name: "🧪 Validar PR para develop"
+name: "🧪 CI"
+run-name: "🧪 Validar código · ${{ github.head_ref || github.ref_name }}"
 
 on:
   pull_request:
     branches:
       - develop
+      - release
+      - "release/**"
+      - main
+  push:
+    branches:
+      - develop
+      - release
+      - "release/**"
+      - main
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-pr-${{ github.event.pull_request.number }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -30,16 +39,23 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: "🧪 Validar bloqueios entre CI e CD"
+        run: node --test .github/scripts/await-ci.test.cjs
+
       - name: "🔍 02 · Analisar arquivos alterados"
         id: detect
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           ci_required=false
           changed_files="$(mktemp)"
 
-          git diff --name-only "$BASE_SHA" "$HEAD_SHA" > "$changed_files"
+          if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            git ls-tree -r --name-only "$HEAD_SHA" > "$changed_files"
+          else
+            git diff --name-only "$BASE_SHA" "$HEAD_SHA" > "$changed_files"
+          fi
 
           if [ ! -s "$changed_files" ]; then
             echo "No changed files found. Running full CI for safety."
@@ -50,7 +66,7 @@ jobs:
 
             while IFS= read -r file; do
               case "$file" in
-                README.md|docs/*|*.md)
+                *.md)
                   ;;
                 *)
                   ci_required=true
@@ -70,9 +86,14 @@ jobs:
     steps:
       - name: "🔀 01 · Conferir origem e destino do PR"
         env:
+          EVENT_NAME: ${{ github.event_name }}
           BASE_BRANCH: ${{ github.base_ref }}
           HEAD_BRANCH: ${{ github.head_ref }}
         run: |
+          if [ "$EVENT_NAME" != "pull_request" ]; then
+            echo "Push na branch protegida: origem validada no PR."
+            exit 0
+          fi
           echo "Base branch: $BASE_BRANCH"
           echo "Head branch: $HEAD_BRANCH"
 

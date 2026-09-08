@@ -7,18 +7,35 @@ on:
       - develop
 
 permissions:
+  actions: read
   contents: write
   pull-requests: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref_name }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   RELEASE_BRANCH: ${{ vars.RELEASE_BRANCH || 'release' }}
 
 jobs:
+  await-ci:
+    name: "🚦 00 · Aguardar CI do commit"
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    outputs:
+      run_id: ${{ steps.ci.outputs.run_id }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: "🚦 Verificar resultado da CI"
+        id: ci
+        uses: actions/github-script@v8
+        with:
+          script: |
+            await require('./.github/scripts/await-ci.cjs')({ github, context, core });
+
   detect-deploy-scope:
+    needs: await-ci
     name: "🔎 01 · Detectar se há mudança que exige deploy"
     runs-on: ubuntu-latest
     outputs:
@@ -70,7 +87,7 @@ jobs:
 
   deploy-development:
     name: "☁️ 02 · Deploy em development"
-    needs: detect-deploy-scope
+    needs: [await-ci, detect-deploy-scope]
     if: needs.detect-deploy-scope.outputs.deploy_required == 'true'
     uses: ./.github/workflows/aws-deploy.yml
     with:
@@ -83,7 +100,7 @@ jobs:
     needs:
       - detect-deploy-scope
       - deploy-development
-    if: always() && vars.AUTO_PR_ENABLED == 'true' && (needs.detect-deploy-scope.outputs.deploy_required == 'false' || (needs.deploy-development.result == 'success' && (needs.deploy-development.outputs.terraform_action == 'apply' || needs.deploy-development.outputs.terraform_action == 'destroy')))
+    if: needs.deploy-development.result == 'success' && vars.AUTO_PR_ENABLED == 'true'
     env:
       TERRAFORM_ACTION: ${{ needs.deploy-development.outputs.terraform_action }}
 

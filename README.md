@@ -109,9 +109,7 @@ A esteira segue o mesmo modelo da API, mas focada somente em Terraform:
 
 | Workflow | Quando roda | O que faz |
 | --- | --- | --- |
-| `🧪 CI Development` | Pull request para `develop` | Verifica formatação, inicialização e validação do Terraform. |
-| `🔎 CI Release` | Pull request para `release` ou `release/**` | Verifica formatação, inicialização e validação do Terraform. |
-| `🛡️ CI Production` | Pull request para `main` | Verifica formatação, inicialização e validação do Terraform. |
+| `🧪 CI` | PR e push para `develop`, `release`, `release/**` e `main` | Valida código Terraform e Git Flow em um único workflow. |
 | `🚀 CD Development` | Push na `develop` | Executa `apply` ou `destroy` em `development`. |
 | `☁️ AWS Deploy` | Chamado pelo CD de desenvolvimento | Executa `apply` ou `destroy` da VPC conforme controle versionado. |
 | `🔀 CD Release` | Push na `release` ou `release/**` | Registra promoção lógica para homologation e abre PR para `main` quando habilitado. |
@@ -199,3 +197,23 @@ Nenhum segredo deve ser versionado no repositório.
 - Controle explícito de `apply` e `destroy`.
 - Validação real da VPC após `apply` e após `destroy`.
 - Nomenclatura com prefixo `oficina-mecanica-*`.
+
+### CI única e progressão do CD
+
+O arquivo `.github/workflows/ci.yml` concentra a integração contínua. O mesmo
+workflow valida cada PR e o commit resultante do merge; não existe uma CI por
+ambiente. O CD aguarda uma execução `push` aprovada desse workflow, do mesmo
+repositório, branch e SHA. Falha, cancelamento, ausência ou timeout bloqueiam a entrega.
+Os nomes dos checks obrigatórios existentes foram preservados.
+
+Somente Markdown pode dispensar validações pesadas. Arquivos executáveis em `docs/`
+também passam pela CI. A concorrência da CI cancela validações antigas; a do CD
+preserva a execução em andamento para não interromper Terraform.
+
+`development` é o ambiente físico. `release` e `main` registram homologação e
+produção lógicas, conforme ADR-0010, sem provisionar outros ambientes AWS.
+A promoção automática para `release` exige deploy físico concluído com sucesso;
+mudanças sem deploy não são apresentadas como um deploy validado. Merges e
+aprovações continuam humanos. Nenhum workflow aprova ou faz merge de PR.
+
+Veja a [auditoria de CI/CD](docs/auditoria-ci-cd.md) para verificações e limitações.
