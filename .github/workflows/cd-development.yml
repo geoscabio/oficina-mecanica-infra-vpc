@@ -83,7 +83,9 @@ jobs:
     needs:
       - detect-deploy-scope
       - deploy-development
-    if: always() && vars.AUTO_PR_ENABLED == 'true' && (needs.detect-deploy-scope.outputs.deploy_required == 'false' || (needs.deploy-development.result == 'success' && needs.deploy-development.outputs.terraform_action == 'apply'))
+    if: always() && vars.AUTO_PR_ENABLED == 'true' && (needs.detect-deploy-scope.outputs.deploy_required == 'false' || (needs.deploy-development.result == 'success' && (needs.deploy-development.outputs.terraform_action == 'apply' || needs.deploy-development.outputs.terraform_action == 'destroy')))
+    env:
+      TERRAFORM_ACTION: ${{ needs.deploy-development.outputs.terraform_action }}
 
     steps:
       - name: "📥 01 · Baixar código do repositório"
@@ -95,6 +97,18 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          case "$TERRAFORM_ACTION" in
+            destroy)
+              promotion_message="PR automático aberto após destroy bem-sucedido em development. A promoção registra a remoção da infraestrutura; ela não executa Terraform em release."
+              ;;
+            apply)
+              promotion_message="PR automático aberto após deploy bem-sucedido em development. O merge para \`$RELEASE_BRANCH\` continua manual para manter revisão e rastreabilidade."
+              ;;
+            *)
+              promotion_message="PR automático aberto sem deploy físico em development. O merge para \`$RELEASE_BRANCH\` continua manual para manter revisão e rastreabilidade."
+              ;;
+          esac
+
           if ! git ls-remote --exit-code --heads origin "$RELEASE_BRANCH"; then
             echo "Release branch '$RELEASE_BRANCH' does not exist. Creating it from main."
             git fetch origin main
@@ -121,4 +135,4 @@ jobs:
             --base "$RELEASE_BRANCH" \
             --head develop \
             --title "ci(release): deploy develop to $RELEASE_BRANCH" \
-            --body "PR automático aberto após deploy bem-sucedido em development. O merge para \`$RELEASE_BRANCH\` continua manual para manter revisão e rastreabilidade."
+            --body "$promotion_message"
