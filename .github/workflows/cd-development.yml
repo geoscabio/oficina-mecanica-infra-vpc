@@ -2,7 +2,9 @@ name: "🚀 CD Development"
 run-name: "🚀 Deploy em development"
 
 on:
-  workflow_call:
+  push:
+    branches:
+      - develop
 
 permissions:
   contents: write

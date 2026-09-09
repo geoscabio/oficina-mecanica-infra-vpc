@@ -2,7 +2,10 @@ name: "🔀 CD Release"
 run-name: "🔀 Registrar deploy em release"
 
 on:
-  workflow_call:
+  push:
+    branches:
+      - release
+      - "release/**"
 
 permissions:
   contents: read

@@ -8,19 +8,13 @@ on:
       - release
       - "release/**"
       - main
-  push:
-    branches:
-      - develop
-      - release
-      - "release/**"
-      - main
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ${{ github.workflow }}-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 env:
   TF_WORKING_DIRECTORY: infra/terraform/environments/dev
@@ -42,17 +36,13 @@ jobs:
       - name: "🔍 02 · Analisar arquivos alterados"
         id: detect
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           ci_required=false
           changed_files="$(mktemp)"
 
-          if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
-            git ls-tree -r --name-only "$HEAD_SHA" > "$changed_files"
-          else
-            git diff --name-only "$BASE_SHA" "$HEAD_SHA" > "$changed_files"
-          fi
+          git diff --name-only "$BASE_SHA" "$HEAD_SHA" > "$changed_files"
 
           if [ ! -s "$changed_files" ]; then
             echo "No changed files found. Running full CI for safety."
@@ -83,14 +73,9 @@ jobs:
     steps:
       - name: "🔀 01 · Conferir origem e destino do PR"
         env:
-          EVENT_NAME: ${{ github.event_name }}
           BASE_BRANCH: ${{ github.base_ref }}
           HEAD_BRANCH: ${{ github.head_ref }}
         run: |
-          if [ "$EVENT_NAME" != "pull_request" ]; then
-            echo "Push na branch protegida: origem validada no PR."
-            exit 0
-          fi
           echo "Base branch: $BASE_BRANCH"
           echo "Head branch: $HEAD_BRANCH"
 
@@ -192,32 +177,3 @@ jobs:
           fi
 
           echo "All CI responsibilities passed."
-
-  cd_development:
-    name: "🚀 CD Development"
-    needs: quality_gate
-    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
-    permissions:
-      contents: write
-      pull-requests: write
-    uses: ./.github/workflows/cd-development.yml
-    secrets: inherit
-
-  cd_release:
-    name: "🔀 CD Release"
-    needs: quality_gate
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/release' || startsWith(github.ref, 'refs/heads/release/'))
-    permissions:
-      contents: read
-      pull-requests: write
-    uses: ./.github/workflows/cd-release.yml
-    secrets: inherit
-
-  cd_production:
-    name: "🏁 CD Production"
-    needs: quality_gate
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    permissions:
-      contents: read
-    uses: ./.github/workflows/cd-production.yml
-    secrets: inherit
