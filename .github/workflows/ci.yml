@@ -1,10 +1,13 @@
-name: "🧪 CI Development"
-run-name: "🧪 Validar PR para develop"
+name: "🧪 CI"
+run-name: "🧪 Validar código · ${{ github.head_ref || github.ref_name }}"
 
 on:
   pull_request:
     branches:
       - develop
+      - release
+      - "release/**"
+      - main
 
 permissions:
   contents: read
@@ -50,7 +53,7 @@ jobs:
 
             while IFS= read -r file; do
               case "$file" in
-                README.md|docs/*|*.md)
+                *.md)
                   ;;
                 *)
                   ci_required=true
