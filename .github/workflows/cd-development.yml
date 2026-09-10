@@ -12,7 +12,7 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref_name }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   RELEASE_BRANCH: ${{ vars.RELEASE_BRANCH || 'release' }}
@@ -83,7 +83,13 @@ jobs:
     needs:
       - detect-deploy-scope
       - deploy-development
-    if: always() && vars.AUTO_PR_ENABLED == 'true' && (needs.detect-deploy-scope.outputs.deploy_required == 'false' || (needs.deploy-development.result == 'success' && (needs.deploy-development.outputs.terraform_action == 'apply' || needs.deploy-development.outputs.terraform_action == 'destroy')))
+    if: >-
+      !cancelled() &&
+      vars.AUTO_PR_ENABLED == 'true' &&
+      needs.detect-deploy-scope.result == 'success' &&
+      (needs.deploy-development.result == 'success' ||
+       (needs.detect-deploy-scope.outputs.deploy_required == 'false' &&
+        needs.deploy-development.result == 'skipped'))
     env:
       TERRAFORM_ACTION: ${{ needs.deploy-development.outputs.terraform_action }}
 
@@ -117,6 +123,11 @@ jobs:
           fi
 
           git fetch origin develop "$RELEASE_BRANCH"
+
+          if [ "$(git rev-parse "origin/develop")" != "$GITHUB_SHA" ]; then
+            echo "Branch avançou após este commit. A promoção cabe ao CD do novo commit."
+            exit 0
+          fi
 
           pending_commits="$(git rev-list --count "origin/$RELEASE_BRANCH..origin/develop")"
           if [ "$pending_commits" -eq 0 ]; then
