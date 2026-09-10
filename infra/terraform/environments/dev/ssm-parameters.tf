@@ -44,6 +44,16 @@ resource "aws_ssm_parameter" "nat_gateway_id" {
 }
 
 resource "aws_ssm_parameter" "status" {
+  # Publicar ready somente após concluir a infraestrutura e seus contratos SSM.
+  depends_on = [
+    module.vpc,
+    aws_ssm_parameter.vpc_id,
+    aws_ssm_parameter.public_subnet_ids,
+    aws_ssm_parameter.private_subnet_ids,
+    aws_ssm_parameter.private_subnet_cidrs,
+    aws_ssm_parameter.nat_gateway_id,
+  ]
+
   name        = "${local.ssm_status_prefix}/vpc"
   description = "Status operacional da VPC compartilhada da Oficina Mecânica."
   type        = "String"
