@@ -32,25 +32,28 @@ jobs:
 
       - name: "🔍 02 · Analisar arquivos alterados"
         id: detect
+        env:
+          GITHUB_BEFORE: ${{ github.event.before }}
         run: |
           deploy_required=false
+          head_sha="$GITHUB_SHA"
+          base_sha="$GITHUB_BEFORE"
 
-          if git ls-remote --exit-code --heads origin "$RELEASE_BRANCH"; then
-            git fetch origin "$RELEASE_BRANCH"
-            promotion_base="origin/$RELEASE_BRANCH"
+          if [ -n "$base_sha" ] && [ "$base_sha" != "0000000000000000000000000000000000000000" ] && git cat-file -e "$base_sha^{commit}" 2>/dev/null; then
+            base_ref="$base_sha"
+          elif git rev-parse HEAD~1 >/dev/null 2>&1; then
+            base_ref="HEAD~1"
           else
-            echo "Release branch '$RELEASE_BRANCH' does not exist. Using main as the promotion base."
-            git fetch origin main
-            promotion_base="origin/main"
+            base_ref="$head_sha"
           fi
 
           changed_files="$(mktemp)"
-          git diff --name-only "$promotion_base" "$GITHUB_SHA" > "$changed_files"
+          git diff --name-only "$base_ref" "$head_sha" > "$changed_files"
 
           if [ ! -s "$changed_files" ]; then
             deploy_required=false
           else
-            echo "Files pending promotion from $promotion_base to $GITHUB_SHA:"
+            echo "Files changed in the current push from $base_ref to $head_sha:"
             cat "$changed_files"
 
             while IFS= read -r file; do
