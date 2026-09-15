@@ -1,9 +1,29 @@
-# Oficina Mecânica — Infraestrutura VPC
+# 🌐 Oficina Mecânica — Infraestrutura VPC
 
 Rede base da solução Oficina Mecânica. A visão geral está no
 [README da API](https://github.com/geoscabio/oficina-mecanica-api#readme).
 
-## Responsabilidade e arquitetura
+---
+
+## 📌 Índice
+
+- [✨ Visão geral](#visao-geral)
+- [🏗️ Responsabilidade e arquitetura](#arquitetura)
+- [🧩 Repositórios da solução](#repositorios)
+- [🔐 Configuração, secrets e contratos](#configuracao)
+- [☁️ Execução, CI/CD, deploy e validações](#deploy)
+
+---
+
+<a id="visao-geral"></a>
+
+## ✨ Visão geral
+
+Camada de rede compartilhada, consumida pelos componentes privados da solução.
+
+<a id="arquitetura"></a>
+
+## 🏗️ Responsabilidade e arquitetura
 
 Este repositório cria a VPC, sub-redes públicas e privadas, NAT Gateway e os
 contratos SSM que desacoplam os demais repositórios. Ele não cria EKS, RDS,
@@ -11,7 +31,11 @@ API Gateway nem carga de aplicação.
 
 `Internet -> sub-redes públicas/NAT -> workloads em sub-redes privadas`
 
-## Repositórios da solução
+---
+
+<a id="repositorios"></a>
+
+## 🧩 Repositórios da solução
 
 | Repositório | Responsabilidade |
 |---|---|
@@ -22,13 +46,19 @@ API Gateway nem carga de aplicação.
 | [RDS](https://github.com/geoscabio/oficina-mecanica-infra-rds) | SQL Server privado. |
 | [API Gateway](https://github.com/geoscabio/oficina-mecanica-infra-api-gateway) | Entrada HTTP e VPC Link. |
 
-## Tecnologias e pré-requisitos
+---
+
+## 🧰 Tecnologias e pré-requisitos
 
 Terraform, AWS VPC, AWS Systems Manager Parameter Store e GitHub Actions.
 Para execução local, instale Terraform e AWS CLI e configure credenciais com
 permissão para os recursos de rede.
 
-## Configuração, secrets e contratos
+---
+
+<a id="configuracao"></a>
+
+## 🔐 Configuração, secrets e contratos
 
 | Nome | Tipo e escopo | Obrigatório | Finalidade |
 |---|---|---:|---|
@@ -51,7 +81,11 @@ Após o apply, este repositório publica os contratos abaixo no Parameter Store:
 EKS, RDS, Auth Lambda e API Gateway consomem esses contratos; nenhum valor
 sensível é publicado aqui.
 
-## Execução, CI/CD, deploy e validações
+---
+
+<a id="deploy"></a>
+
+## ☁️ Execução, CI/CD, deploy e validações
 
 O workflow `aws-deploy.yml` preserva os fluxos de `plan`, `apply` e `destroy`.
 No diretório Terraform, execute:
