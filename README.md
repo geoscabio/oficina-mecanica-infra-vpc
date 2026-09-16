@@ -29,7 +29,7 @@ Internet
    ▼
 API Gateway ───────────────┐
                             │
-                      VPC Link futuro
+                         VPC Link
                             │
                             ▼
                   NLB interno da API
@@ -188,6 +188,10 @@ Configurar no GitHub Environment `development`:
 
 Nenhum segredo deve ser versionado no repositório.
 
+Os itens devem ser criados em **Settings > Environments > development**. `AUTO_PR_ENABLED` e `RELEASE_BRANCH` também são lidos como Variables do repositório pelos workflows de promoção; seus valores são configurações não sensíveis.
+
+Após `apply`, valide a VPC e os parâmetros `/oficina-mecanica/development/vpc/*` e `/oficina-mecanica/development/status/vpc`. Após `destroy`, a esteira confirma a ausência dos recursos e contratos SSM antes de considerar a execução concluída.
+
 ---
 
 ## ✅ Boas práticas adotadas
@@ -199,3 +203,5 @@ Nenhum segredo deve ser versionado no repositório.
 - Controle explícito de `apply` e `destroy`.
 - Validação real da VPC após `apply` e após `destroy`.
 - Nomenclatura com prefixo `oficina-mecanica-*`.
+
+Documentação central e arquitetura completa: [README da Oficina Mecânica API](https://github.com/geoscabio/oficina-mecanica-api).
